@@ -1,0 +1,66 @@
+{
+    "organizationName": "epitesting",
+    "report": {
+        "options": {
+            "format": "A3",
+            "orientation": "portrait",
+            "border": "10mm",
+            "header": {
+                "height": "20mm"
+            },
+            "footer": {
+                "height": "20mm"
+            }
+        },
+
+        "organizationPermissions": [
+            {
+                "name": "Organization",
+                "namespaceId": "3e65f728-f8bc-4ecd-8764-7e378b19bfa7",
+                "token": "NAMESPACE"
+            },
+            {
+                "name": "Process",
+                "namespaceId": "2dab47f9-bd70-49ed-9bd5-8eb051e59c02",
+                "token": "$PROCESS"
+            }
+        ],
+        "projectPermissions": [
+            {
+                "name": "Project",
+                "namespaceId": "52d39943-cb85-4d7f-8fa8-c6baac873819",
+                "token": "$PROJECT:vstfs:///Classification/TeamProject/{projectId}"
+            },
+            {
+                "name": "Pipelines de Build",
+                "namespaceId": "33344d9c-fc72-4d6f-aba5-fa317101a7e9",
+                "token": "{projectId}"
+            },
+            {
+                "name": "Repositorios Git",
+                "namespaceId": "2e9eb7ed-3c0a-47d4-87c1-0ffdd275fd87",
+                "token": "repoV2/{projectId}"
+            },
+            {
+                "name": "Service Connection",
+                "namespaceId": "49b48001-ca20-4adc-8111-5b60c903a50c",
+                "token": "endpoints/{projectId}"
+            },
+            {
+                "name": "Library",
+                "namespaceId": "b7e84409-6553-448a-bbb2-af228e07cbeb",
+                "token": "Library/{projectId}"
+            },
+            {
+                "name": "Enviroment",
+                "namespaceId": "83d4c2e6-e57d-4d6e-892b-b87222b7ad20",
+                "token": "Environments/{projectId}"
+            },
+            {
+                "name": "Queries",
+                "namespaceId": "71356614-aad7-4757-8f2c-0fb3bff6f680",
+                "token": "$/{projectId}"
+            }
+        ]
+    }
+}

@@ -1,0 +1,16 @@
+{
+  "name": "Reporte",
+  "version": "1.0.0",
+  "description": "",
+  "main": "report.js",
+  "dependencies": {
+    "pdf-creator-node": "^2.2.4"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "start": "node report.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}

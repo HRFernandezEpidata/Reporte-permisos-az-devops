@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <mate charest="utf-8" />
+    <title>Reporte Permisos</title>
+    <style>
+        * {
+            font-family: Arial, Helvetica, sans-serif;
+            color: rgb(26, 26, 26);
+        }
+        h1 {
+            text-align: center;
+            font-size: 48px;
+            margin-bottom: 90px;
+        }
+        .user {
+            margin: 35px 0 0 0;
+            padding: 8px 15px;
+            background: #f2f2f2;
+            font-size: 20px;
+            box-shadow: 10px 10px 39px 0px rgba(0,0,0,0.14);
+        
+        }
+        .user__permission-name {
+            margin: 35px 35px 0 35px;
+            padding: 10px 8px;
+            border: 1px solid #D3D3D3;
+            font-size: 17px;
+            text-align: center;
+            background: #0076ac;
+            color: #fff;
+            font-weight: bold;
+        }
+        .user__permission-project {
+            margin: 45px 15px 0 15px;
+            padding: 20px 0px;
+            border: 1px solid #D3D3D3;
+            font-size: 18px;
+            text-align: center;
+            background: #f3b927;
+            font-weight: bold;
+        }
+
+        table {
+            font-family: Arial, Helvetica, sans-serif;
+            border-collapse: collapse;
+            margin: 0 35px 0 35px;
+            width: calc(100% - 70px);
+        }
+
+        table td, table th {
+            border: 1px solid #D3D3D3;
+            padding: 8px;
+        }
+
+        table tr:nth-child(even){background-color: #f2f2f2;}
+
+        table th {
+            padding: 8px;
+            text-align: center;
+            font-weight: 400;
+        }
+
+        .permission__name {
+            width: 70%;
+        }
+        .permission__head {
+            background: #0d8eca;
+            color: #fff;
+            font-weight: bold;
+        }
+        .permission__value {
+            width: 30%;
+        }
+    </style>
+</head>
+<body>
+    <h1>Reporte de permisos de usuarios de la organizacion '{{organizationName}}'</h1>
+    {{#each users}}
+    <div class="user"><b>Nombre:</b> {{this.name}} <br><b>Mail:</b> {{this.mail}}</div>
+        {{#each this.permissions.organization}}
+        <div class="user__permission-name">{{this.name}}</div>
+        <table>
+            <tr>
+                <th class="permission__head">Permiso</th>
+                <th class="permission__head">Valor</th>
+            </tr>
+            {{#each this.values}}
+            <tr>
+                <th class="permission__name">{{this.name}}</th>
+                <th class="permission__value">{{this.value}}</th>
+            </tr>
+            {{/each}}
+        </table>
+        {{/each}}
+        {{#each this.permissions.projects}}
+        <div class="user__permission-project">{{this.nameDisplay}}</div>
+            {{#each this.permissions}}
+            <div class="user__permission-name">{{this.name}}</div>
+            <table>
+                <tr>
+                    <th class="permission__head">Permiso</th>
+                    <th class="permission__head">Valor</th>
+                </tr>
+                {{#each this.values}}
+                <tr>
+                    <th class="permission__name">{{this.name}}</th>
+                    <th class="permission__value">{{this.value}}</th>
+                </tr>
+                {{/each}}
+            </table>
+            {{/each}}
+        {{/each}}
+    {{/each}}
+</body>
+</html>
