@@ -37,6 +37,11 @@
                 "token": "{projectId}"
             },
             {
+                "name": "Pipelines de Release",
+                "namespaceId": "c788c23e-1b46-4162-8f5e-d7585343b5de",
+                "token": "{projectId}"
+            },
+            {
                 "name": "Repositorios Git",
                 "namespaceId": "2e9eb7ed-3c0a-47d4-87c1-0ffdd275fd87",
                 "token": "repoV2/{projectId}"
