@@ -6,55 +6,62 @@ const timeStart = new Date()
 
 const reportConfig = require('./reportConfiguration.json');
 
+if (reportConfig.organizationName == '')
+    throw (`Error: La clave "organizationName" del archivo "reportConfiguration.json" esta vacio.`);
+
 const orgName = reportConfig.organizationName;
 const urlOrganization = 'https://dev.azure.com/' + orgName
 
-const cmd = `az devops security group list --scope organization --org ${urlOrganization}`;
+const allUsers = [];
+
+const cmdGetAllOrganizationGroups = `az devops security group list --scope organization --org ${urlOrganization}`;
 console.log('Obteniendo los usuarios de la organización...');
-exec(cmd, async (error, stdout, stderr) => {
+exec(cmdGetAllOrganizationGroups, async (error, stdout, stderr) => {
     if (error) {
         console.log(`error: ${error.message}`);
         return;
     }
     else {
-        const allUsers = [];
-
         const groups = JSON.parse(stdout).graphGroups;
 
-        const projGroups = Object.values(groups)
-        .filter(g => !g.principalName.includes(`[${orgName}]`))
-        .filter(g => !g.principalName.includes('[TEAM FOUNDATION]'));
+        const projectGroups = Object.values(groups)                     //  We filter and we are left with only groups 
+        .filter(g => !g.principalName.includes(`[${orgName}]`))         //  of projects only groups of projects
+        .filter(g => !g.principalName.includes('[TEAM FOUNDATION]'));   //
+        
         const projects = [];
 
-        for (const g of projGroups) {
-            const principalName = g.principalName;
+        for (const group of projectGroups) {
+            const principalName = group.principalName;
             const projectName = principalName.substring(1, principalName.indexOf(']'));
             
-            const proj = projects.find(e => e.name == projectName);
+            const project = projects.find(e => e.name == projectName);
             
-            if (proj) {
-                proj.groups.push({ 
-                    name: g.principalName,
-                    descriptor: g.descriptor,
+            if (project) {
+                project.groups.push({ 
+                    name: group.principalName,
+                    descriptor: group.descriptor,
                 });
             }
             else {
-                const idProject = g.domain.split('TeamProject/')[1];
+                const idProject = group.domain.split('TeamProject/')[1];
                 projects.push({
                     name: projectName,
                     id: idProject,
                     groups: [
                         { 
-                            name: g.principalName,
-                            descriptor: g.descriptor
+                            name: group.principalName,
+                            descriptor: group.descriptor
                         }
                     ]
                 });
             }
         }
         
+        const promisesGetProjectUsers = [];
         for (const project of projects) 
-            project.users =  await getProjectUsers(project)
+            promisesGetProjectUsers.push(getProjectUsers(project));
+
+        await Promise.all(promisesGetProjectUsers);
         
         projects.forEach(project => {
             project.users.forEach(user => {
@@ -64,56 +71,28 @@ exec(cmd, async (error, stdout, stderr) => {
             });
         });
 
-        console.log(`Se han encontrado ${allUsers.length} usuarios.`);
+        console.log(`Total de usuarios de la organización: ${allUsers.length}`);
 
+        //Get Organization permissions
         console.log('Obteniendo permisos a nivel organización de los usuarios...');
+        const promisesGetOrganizationPermissions = [];
         const orgPermissions = reportConfig.report.organizationPermissions;
-        for (const user of allUsers) {
-            for (const p of orgPermissions) {
-                const permissions =  await getPermissions(p.namespaceId, user.mail, p.token);
-                user.permissions.organization.push({
-                    name: p.name,
-                    values: permissions
-                });
-            }
-        }
+        for (const user of allUsers) 
+            promisesGetOrganizationPermissions.push(getOrganizationPermissions(user, orgPermissions));
+        await Promise.all(promisesGetOrganizationPermissions);
 
-        const projPermissions = reportConfig.report.projectPermissions;
+        //Get project permissions
         console.log('Obteniendo permisos a nivel proyecto de los usuarios...');
-        for (const project of projects) {
-            for (const p of projPermissions) {
-                const groupId = project.groups[0].descriptor;
-                let token = p.token.replace('{projectId}', project.id);
-                token = await getPermissionToken(p.namespaceId, groupId, token);
-                if (token != undefined) {
-                    const projectUsers = allUsers.filter(u => project.users.map(u=>u.mail).includes(u.mail));
-                    for (const user of projectUsers) {
-                        const permissions = await getPermissions(p.namespaceId, user.mail, token);
-                        const projectPermissions = user.permissions.projects.find(p => p.name == project.name);
-                        if (projectPermissions) {
-                            projectPermissions.permissions.push({
-                                name: p.name,
-                                values: permissions
-                            });
-                        }
-                        else {
-                            user.permissions.projects.push({
-                                name: project.name,
-                                nameDisplay: `[${project.name}]/${user.mail}`,
-                                permissions: [{
-                                    name: p.name,
-                                    values: permissions
-                                }]
-                            });
-                        }
-                    }
-                }
-            }
-        }
+        const projPermissions = reportConfig.report.projectPermissions;
+        const promisesGetProjectPermissions = [];
+        for (const project of projects) 
+            promisesGetProjectPermissions.push(getProjectPermissions(project, projPermissions));
+        await Promise.all(promisesGetProjectPermissions);
 
-        fs.writeFileSync('users.json', JSON.stringify(allUsers));
 
         //Report generation
+        console.log('Generating report...');
+        
         const templateReport = fs.readFileSync("templateReport.html", "utf8");
 
         const options = reportConfig.report.options;
@@ -130,7 +109,6 @@ exec(cmd, async (error, stdout, stderr) => {
             type: ""
         }
         
-        console.log('Generating report...');
         pdf.create(document, options)
         .then((res) => {
             console.log('Report generated: ' + res.filename);
@@ -143,43 +121,95 @@ exec(cmd, async (error, stdout, stderr) => {
         .catch((error) => {
             console.error(error);
         });
+
+        fs.writeFileSync('users.json', JSON.stringify(allUsers));
     }
 });
 
 async function getProjectUsers(project) {
     const projectUsers = [];
-    for (const group of project.groups) {
-        const cmd = `az devops security group membership list --id ${group.descriptor} --org ${urlOrganization} --relationship members`;
-        const groupUsers = await new Promise ((resolve, reject) => { 
-            exec (cmd, (error, stdout, stderr) => { 
-                if (error) { 
-                    console.warn(error); 
-                }
-                const data = JSON.parse(stdout);
-                const users = Object.values(data)
-                .filter(m => m.subjectKind == 'user')
-                .filter(m => m.mailAddress != '')
-                .map(m => {
-                    return {
-                        name: m.displayName,
-                        mail: m.mailAddress,
-                        permissions: {
-                            organization: [],
-                            projects: []
-                        }
+    return new Promise(async (resolve, reject) => {
+        for (const group of project.groups) {
+            const cmd = `az devops security group membership list --id ${group.descriptor} --org ${urlOrganization} --relationship members`;
+            const groupUsers = await new Promise ((resolve, reject) => { 
+                exec (cmd, (error, stdout, stderr) => { 
+                    if (error) { 
+                        console.warn(error); 
                     }
-                });
-                resolve(users); 
-            }); 
-        });
+                    const data = JSON.parse(stdout);
+                    const users = Object.values(data)
+                    .filter(m => m.subjectKind == 'user')
+                    .filter(m => m.mailAddress != '')
+                    .map(m => {
+                        return {
+                            name: m.displayName,
+                            mail: m.mailAddress,
+                            permissions: {
+                                organization: [],
+                                projects: []
+                            }
+                        }
+                    });
+                    resolve(users); 
+                }); 
+            });
+    
+            groupUsers.forEach(user => {
+                const containUser = projectUsers.find(u => u.mail == user.mail);
+                if (!containUser)
+                    projectUsers.push(user);
+            });
+        }
+        project.users = projectUsers;
+        resolve();
+    });
+}
 
-        groupUsers.forEach(user => {
-            const containUser = projectUsers.find(u => u.mail == user.mail);
-            if (!containUser)
-                projectUsers.push(user);
-        });
-    }
-    return projectUsers;
+async function getOrganizationPermissions(user, permissions) {
+    return new Promise(async (resolve, reject) => {
+        for (const p of permissions) {
+            const permissions = await getPermissions(p.namespaceId, user.mail, p.token);
+            user.permissions.organization.push({
+                name: p.name,
+                values: permissions
+            });
+        }
+        resolve();
+    });
+}
+
+async function getProjectPermissions(project, permissions) {
+    return new Promise(async (resolve, reject) => {
+        for (const p of permissions) {
+            const groupId = project.groups[0].descriptor;
+            let token = p.token.replace('{projectId}', project.id);
+            token = await getPermissionToken(p.namespaceId, groupId, token);
+            if (token != undefined) {
+                const projectUsers = allUsers.filter(u => project.users.map(u=>u.mail).includes(u.mail));
+                for (const user of projectUsers) {
+                    const permissions = await getPermissions(p.namespaceId, user.mail, token);
+                    const projectPermissions = user.permissions.projects.find(p => p.name == project.name);
+                    if (projectPermissions) {
+                        projectPermissions.permissions.push({
+                            name: p.name,
+                            values: permissions
+                        });
+                    }
+                    else {
+                        user.permissions.projects.push({
+                            name: project.name,
+                            nameDisplay: `[${project.name}]/${user.mail}`,
+                            permissions: [{
+                                name: p.name,
+                                values: permissions
+                            }]
+                        });
+                    }
+                }
+            }
+        }
+        resolve();
+    });
 }
 
 async function getPermissionToken(namespaceId, descriptor, tokenToFind) {
@@ -206,7 +236,6 @@ async function getPermissions(namespaceId, descriptor, token) {
             if (error) { 
                 console.warn(error); 
             }
-
             const data = JSON.parse(stdout);
             const permissions = Object.values(data[0].acesDictionary)[0].resolvedPermissions.map(p => {
                 return {
@@ -214,7 +243,6 @@ async function getPermissions(namespaceId, descriptor, token) {
                     value: p.effectivePermission
                 }
             });
-
             resolve(permissions); 
         }); 
     });
